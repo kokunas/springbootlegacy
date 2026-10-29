@@ -25,9 +25,75 @@
         <dependency>
             <groupId>org.jolokia</groupId>
             <artifactId>jolokia-core</artifactId>
-            <version>1.6.0</version>
+            <version>1.7.3</version>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Tomcat: CVE-2017-5648, CVE-2017-12617, CVE-2018-1304/1336/8014/8034, CVE-2019-0199/0232/12418/17563, CVE-2020-1935/1938/9484, CVE-2021-25329, CVE-2026-24880/41284/42498/43513/43514 -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>8.5.100</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>8.5.100</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>8.5.100</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-logging-juli</artifactId>
+                <version>8.5.2</version>
+            </dependency>
+            <!-- Jackson Databind: CVE-2017-7525/15095/17485, CVE-2018-11307/14718/14719/19362/7489, CVE-2019-14379/14540/16335/16942/16943/17267/17531/20330, CVE-2020-8840/9547/9548/24616/24750/35490-35491/35728/36179-36189, CVE-2021-20190, CVE-2022-42003/42004, CVE-2026-91776 + more -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.18.11</version>
+            </dependency>
+            <!-- Jackson Core: CVE-2025-52999, CVE-2025-49128, CVE-2026-68494, CVE-2026-89425 -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.18.11</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>2.18.11</version>
+            </dependency>
+            <!-- Logback: CVE-2017-5929, CVE-2023-6378, CVE-2021-42550 (partial - 1.2.x max) -->
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>1.2.13</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-core</artifactId>
+                <version>1.2.13</version>
+            </dependency>
+            <!-- SnakeYAML: CVE-2017-18640, CVE-2022-1471, CVE-2022-25857, CVE-2022-38749/38750/38751/38752, CVE-2022-41854 -->
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>2.0</version>
+            </dependency>
+            <!-- Hibernate Validator: CVE-2020-10693, CVE-2023-1932, CVE-2025-35036 -->
+            <dependency>
+                <groupId>org.hibernate</groupId>
+                <artifactId>hibernate-validator</artifactId>
+                <version>6.2.6.Final</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <properties>
         <java.version>1.8</java.version>

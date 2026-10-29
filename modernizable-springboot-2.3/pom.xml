@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.3.3.RELEASE</version>
+		<version>2.7.18</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.instana</groupId>
@@ -50,7 +50,7 @@
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.5.12</version>
+            <version>4.5.14</version>
         </dependency>
 
 		<dependency>
@@ -65,6 +65,90 @@
 			</exclusions>
 		</dependency>
 	</dependencies>
+
+	<dependencyManagement>
+		<dependencies>
+			<!-- Tomcat: CVE-2025-24813, CVE-2026-41293, CVE-2026-43512, CVE-2026-43515, CVE-2026-65182, CVE-2026-65905, CVE-2026-68525 + 26 more -->
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-core</artifactId>
+				<version>9.0.123</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-websocket</artifactId>
+				<version>9.0.123</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-el</artifactId>
+				<version>9.0.123</version>
+			</dependency>
+			<!-- Jackson: CVE-2020-36518, CVE-2021-46877, CVE-2022-42003, CVE-2022-42004, CVE-2026-54512/54513/91776/91777 + more -->
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-databind</artifactId>
+				<version>2.18.11</version>
+			</dependency>
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-core</artifactId>
+				<version>2.18.11</version>
+			</dependency>
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-annotations</artifactId>
+				<version>2.18.11</version>
+			</dependency>
+			<!-- Logback: CVE-2023-6378, CVE-2021-42550 -->
+			<dependency>
+				<groupId>ch.qos.logback</groupId>
+				<artifactId>logback-classic</artifactId>
+				<version>1.2.13</version>
+			</dependency>
+			<dependency>
+				<groupId>ch.qos.logback</groupId>
+				<artifactId>logback-core</artifactId>
+				<version>1.2.13</version>
+			</dependency>
+			<!-- SnakeYAML: CVE-2022-1471, CVE-2022-25857, CVE-2022-38749/38750/38751/38752, CVE-2022-41854 -->
+			<dependency>
+				<groupId>org.yaml</groupId>
+				<artifactId>snakeyaml</artifactId>
+				<version>2.0</version>
+			</dependency>
+			<!-- Micrometer: CVE-2026-40984 -->
+			<dependency>
+				<groupId>io.micrometer</groupId>
+				<artifactId>micrometer-core</artifactId>
+				<version>1.17.2</version>
+			</dependency>
+			<!-- MySQL: CVE-2021-2471, CVE-2022-21363, CVE-2023-22102 (max 8.0.x) -->
+			<dependency>
+				<groupId>mysql</groupId>
+				<artifactId>mysql-connector-java</artifactId>
+				<version>8.0.33</version>
+			</dependency>
+			<!-- Log4j API: CVE-2026-49844 -->
+			<dependency>
+				<groupId>org.apache.logging.log4j</groupId>
+				<artifactId>log4j-api</artifactId>
+				<version>2.26.1</version>
+			</dependency>
+			<!-- Hibernate Core: CVE-2020-25638 -->
+			<dependency>
+				<groupId>org.hibernate</groupId>
+				<artifactId>hibernate-core</artifactId>
+				<version>5.6.15.Final</version>
+			</dependency>
+			<!-- Jakarta EL: CVE-2021-28170 -->
+			<dependency>
+				<groupId>org.glassfish</groupId>
+				<artifactId>jakarta.el</artifactId>
+				<version>3.0.4</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<build>
 		<plugins>
