@@ -101,7 +101,7 @@ Con el código original, sin tocar nada. Guarda en `<módulo>/evidence/before/`.
   compila con un JDK moderno apuntando a 8 y ejecuta en un runtime Java 8. En este
   Mac hay un JRE 8 en `/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Home`.
   ```bash
-  # desde el directorio del módulo; REF = <raíz del repo>/.bob/skills/springboot-modernization/reference
+  # desde el directorio del módulo; REF = ~/.bob/skills/springboot-modernization/reference (o docs/bob/springboot-modernization/reference en el repo)
   mvn -B -Dmaven.compiler.release=8 clean package
   $REF/probe_http.sh "<JRE8>/bin/java" target/actuator-testbed-0.1.0.jar 8090 evidence/before / /health /info
   ```
