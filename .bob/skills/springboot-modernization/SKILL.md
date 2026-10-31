@@ -32,7 +32,10 @@ Para cada módulo pedido (por defecto, los dos):
 
 1. `mvn clean verify` en verde, con un JDK completo ≥ 17 (usa `JAVA_HOME`; en
    este Mac `mvn` puede usar un JRE sin `javac`: elige un JDK, no un JRE).
-2. La app arranca y responde a sus endpoints (ver "Verificación").
+2. **Demostración de que la app sigue funcionando** (ver la sección con ese
+   nombre): mismas llamadas antes y después, comparación y evidencia en el repo.
+   **Sin esta demostración el trabajo no está terminado**, aunque compile y el
+   escáner dé 0.
 3. Re-escaneo con Trivy: **0 CRITICAL y 0 HIGH** (el spike dio 0 en total).
 4. Parent `spring-boot-starter-parent` en la última versión estable 4.x.
 5. READMEs y Dockerfile coherentes con el resultado.
@@ -70,16 +73,89 @@ el parent a la 4.x más reciente. Compila y prueba entre escalones. Esta ruta
 
 1. Rama nueva desde la actual: `git switch -c modernize/springboot-4`. **Nunca
    trabajes en `main`.** No hagas push ni PR salvo petición expresa.
-2. Línea base: conserva `cve-scan.trivy.json` de cada módulo tal cual (es el
-   "antes"). El "después" va en `cve-scan.after.trivy.json`.
-3. Si el repo ya trae pasadas previas de Secure Coder (propiedades como
+2. Línea base de CVE: conserva `cve-scan.trivy.json` de cada módulo tal cual (es
+   el "antes"). El "después" va en `cve-scan.after.trivy.json`.
+3. **Línea base de comportamiento: captúrala ahora, antes de editar nada** (ver
+   "Demostrar que la app sigue funcionando"). Después de migrar ya no se puede
+   reconstruir.
+4. Si el repo ya trae pasadas previas de Secure Coder (propiedades como
    `jackson.version`, `tomcat.version`, `logback.version`, `snakeyaml.version`,
    `spring-framework.version`, `log4j2.version`, `micrometer.version`,
    `jackson-bom.version`), **elimínalas todas**: fijar líneas antiguas debajo de
    Boot 4 deshace la actualización (Tomcat 11, Logback 1.5, SnakeYAML 2.x y
    Jackson 3 vienen del BOM de Boot).
-4. No toques `.maven/conf/settings.xml`: es el mirror de Maven que usa Concert
+5. No toques `.maven/conf/settings.xml`: es el mirror de Maven que usa Concert
    para escanear.
+
+## Demostrar que la app sigue funcionando (obligatorio)
+
+Compilar y dar 0 CVE no prueba nada sobre el comportamiento. La prueba es: **las
+mismas llamadas, contra la versión original y contra la migrada, con respuestas
+equivalentes**, y las diferencias que haya, explicadas una a una.
+
+### 1. Antes de editar: capturar la línea base
+
+Con el código original, sin tocar nada. Guarda en `<módulo>/evidence/before/`.
+
+- **`legacy-springboot-1.2`** (Boot 1.x corre en Java 8; no arranca bien en 17+):
+  compila con un JDK moderno apuntando a 8 y ejecuta en un runtime Java 8. En este
+  Mac hay un JRE 8 en `/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Home`.
+  ```bash
+  # desde el directorio del módulo; REF = <raíz del repo>/.bob/skills/springboot-modernization/reference
+  mvn -B -Dmaven.compiler.release=8 clean package
+  $REF/probe_http.sh "<JRE8>/bin/java" target/actuator-testbed-0.1.0.jar 8090 evidence/before / /health /info
+  ```
+- **`modernizable-springboot-2.3`** (necesita MySQL; se usa H2 en memoria): copia
+  `reference/ShippingSmokeTest.java` a `src/test/java/...`, cambia su import de
+  `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc` por
+  `org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc`,
+  añade `com.h2database:h2` (scope `test`) **solo en la copia de trabajo**, y:
+  ```bash
+  mvn -B -Dmaven.compiler.release=8 -Djvm="<JRE8>/bin/java" \
+      -DargLine="-Devidence.dir=$PWD/evidence/before" clean test
+  ```
+  Luego descarta esos cambios temporales (`git checkout -- .`, borra el test): el
+  test definitivo es el de `reference/`.
+- Si no existe ningún Java 8, no inventes la línea base: dilo en el informe y
+  limítate a la comparación de CVE y a la lista de endpoints sacada del código.
+
+### 2. Después de migrar: repetir y comparar
+
+Mismas rutas y mismas entradas, ahora en el runtime moderno. Guarda en
+`<módulo>/evidence/after/`:
+
+```bash
+# legacy
+$REF/probe_http.sh "$JAVA_HOME/bin/java" target/actuator-testbed-0.1.0.jar 8090 evidence/after / /actuator/health /actuator/info
+# modernizable
+mvn -B -DargLine="-Devidence.dir=$PWD/evidence/after" clean test
+# comparar (semántico: el orden de las claves JSON no cuenta)
+$REF/compare_evidence.py evidence/before evidence/after \
+    --rename health=actuator_health --rename info=actuator_info \
+    --ignore health --ignore info          # solo diferencias justificadas
+```
+
+`compare_evidence.py` devuelve código 1 si hay diferencias no declaradas. Cada
+`--ignore` es una diferencia que **tienes que justificar en el informe**; no uses
+`--ignore` para silenciar algo que no entiendes.
+
+### 3. Diferencias esperadas ya conocidas (medidas en este repo)
+
+| Diferencia | Causa | Qué hacer |
+|---|---|---|
+| Orden de las claves JSON distinto (`uuid` primero → orden alfabético) con los mismos valores | Jackson 3 ordena propiedades alfabéticamente | Es el mismo JSON. Si se exige el orden antiguo: `spring.jackson.use-jackson2-defaults=true` |
+| `/health` → `/actuator/health`; el cuerpo gana `"groups":["liveness","readiness"]` | Desde Boot 2 Actuator cuelga de `/actuator`; en Boot 4 las probes vienen activas | Documentar; si hay sondas externas, actualizar su ruta |
+| `/info` pasa de 200 `{}` a 404 | Boot 4 solo expone `health` por web | Es un endurecimiento; no lo reabras con `exposure.include=*` |
+| Los endpoints de negocio (`/`, `/count`, `/cities/{code}`, `/match/…`, `/codes`, `/calc/{id}`, `/health` del módulo 2.3) | — | Deben salir **IGUAL** |
+
+Cualquier otra diferencia es una regresión hasta que se demuestre lo contrario.
+
+### 4. Dejar la evidencia en el repo
+
+`<módulo>/evidence/before/`, `<módulo>/evidence/after/` y `<módulo>/evidence/RESULT.md`
+con: versiones y runtime de cada lado (Boot, Java), comandos ejecutados, salida
+literal de `compare_evidence.py`, y la tabla de diferencias justificadas. No
+incluyas `app.log` ni `target/`.
 
 ## Qué cambia y cómo arreglarlo
 
@@ -113,7 +189,9 @@ aplicar a ciegas):
 
 - `reference/legacy-springboot-1.2.patch`
 - `reference/modernizable-springboot-2.3.patch`
-- `reference/ShippingSmokeTest.java` (test de humo)
+- `reference/ShippingSmokeTest.java` (test de humo que además guarda cada respuesta)
+- `reference/probe_http.sh` (arranca un jar, llama a rutas y guarda las respuestas)
+- `reference/compare_evidence.py` (compara evidencias antes/después)
 
 Ambos parches se aplican con `git apply` sobre `main` (poms originales 1.2.8 y
 2.3.3). Si la rama ya trae los pines de Secure Coder, no aplicarán: haz los
@@ -126,7 +204,9 @@ No hay tests en el módulo y su `DataSource` apunta a MySQL fijo. Añade
 contexto real con H2 en memoria (dependencia `com.h2database:h2`, scope `test`),
 valida las `@Query` de Spring Data, la serialización JSON con Jackson 3 y los
 endpoints `/health`, `/count`, `/cities/{code}`, `/match/{code}/{text}`,
-`/codes`, `/calc/{id}` y `/actuator/health`. En el módulo `legacy` no hace falta.
+`/codes`, `/calc/{id}` y `/actuator/health`, y guarda cada respuesta en
+`${evidence.dir}` (por defecto `target/evidence`) para la comparación. En el
+módulo `legacy` no hace falta test: usa `probe_http.sh`.
 
 ## Verificación
 
@@ -135,10 +215,11 @@ export JAVA_HOME=<JDK completo 17+>           # no un JRE
 cd <módulo> && mvn -B clean verify
 ```
 
-`legacy-springboot-1.2` además: `java -jar target/actuator-testbed-0.1.0.jar`
-y comprobar que `GET http://127.0.0.1:8090/` responde `Greetings from Spring Boot!`
-y `GET /actuator/health` responde `UP`. Para el módulo 2.3 basta el test de humo
-(necesita MySQL real para arrancar el jar).
+`legacy-springboot-1.2` además: `GET http://127.0.0.1:8090/` debe responder
+`Greetings from Spring Boot!` y `GET /actuator/health` debe responder `UP` (lo
+hace `probe_http.sh`). Para el módulo 2.3 basta el test de humo (arrancar el jar
+necesita MySQL real). La comparación completa antes/después está en
+"Demostrar que la app sigue funcionando".
 
 **Re-escaneo.** `trivy fs` sobre un fat JAR de Spring Boot **no detecta nada**
 (0 archivos de lenguaje), así que un "0" ahí no vale. Usa SBOM:
@@ -174,9 +255,11 @@ Si queda algún CRITICAL/HIGH tras el salto, por orden:
 - Un commit por módulo en la rama `modernize/springboot-4`, mensaje en inglés,
   imperativo, sin líneas de atribución automáticas.
 - **Informe final** (en tu respuesta): tabla antes/después por módulo (versión de
-  Boot, Spring Framework, Java, CVE por severidad), lista de cambios de código,
-  qué comandos ejecutaste con su resultado, y una sección "No verificado" con lo
-  que no pudiste probar (MySQL real, llamada al cart, `docker build`, reintentos).
+  Boot, Spring Framework, Java, CVE por severidad), **resultado de la comparación
+  de comportamiento** (cuántos endpoints IGUAL, cuáles con diferencia esperada y
+  por qué, y ninguna regresión), lista de cambios de código, qué comandos
+  ejecutaste con su resultado, y una sección "No verificado" con lo que no pudiste
+  probar (MySQL real, llamada al cart, `docker build`, reintentos).
 
 ## Aviso para el entorno de demo con Concert
 

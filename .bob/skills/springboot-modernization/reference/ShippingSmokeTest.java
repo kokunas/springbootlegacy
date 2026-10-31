@@ -5,7 +5,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import javax.sql.DataSource;
+
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.web.servlet.ResultActions;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,13 +41,25 @@ class ShippingSmokeTest {
         @Bean
         DataSource getDataSource() {
             return DataSourceBuilder.create()
-                    .url("jdbc:h2:mem:cities;DB_CLOSE_DELAY=-1")
+                    .url("jdbc:h2:mem:cities;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE")
                     .username("sa").password("").build();
         }
     }
 
     @Autowired MockMvc mvc;
     @Autowired CityRepository cities;
+
+    // Guarda cada respuesta en target/evidence/<nombre>.txt (estado + cuerpo) para
+    // compararla antes y despues de la migracion.
+    private ResultActions record(String name, String path) throws Exception {
+        ResultActions r = mvc.perform(get(path));
+        MockHttpServletResponse res = r.andReturn().getResponse();
+        Path dir = Paths.get(System.getProperty("evidence.dir", "target/evidence"));
+        Files.createDirectories(dir);
+        Files.write(dir.resolve(name + ".txt"),
+                (res.getStatus() + "\n" + res.getContentAsString() + "\n").getBytes(StandardCharsets.UTF_8));
+        return r;
+    }
 
     @BeforeEach
     void seed() {
@@ -56,20 +76,20 @@ class ShippingSmokeTest {
 
     @Test
     void healthAndCount() throws Exception {
-        mvc.perform(get("/health")).andExpect(status().isOk()).andExpect(content().string("OK"));
-        mvc.perform(get("/count")).andExpect(status().isOk()).andExpect(content().string("1"));
-        mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+        record("health", "/health").andExpect(status().isOk()).andExpect(content().string("OK"));
+        record("count", "/count").andExpect(status().isOk()).andExpect(content().string("1"));
+        record("actuator-health", "/actuator/health").andExpect(status().isOk());
     }
 
     @Test
     void jsonEndpoints() throws Exception {
-        mvc.perform(get("/cities/DE")).andExpect(status().isOk())
+        record("cities", "/cities/DE").andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].city").value("Dusseldorf"));
-        mvc.perform(get("/match/DE/Dus")).andExpect(status().isOk())
+        record("match", "/match/DE/Dus").andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].code").value("DE"));
-        mvc.perform(get("/codes")).andExpect(status().isOk());
+        record("codes", "/codes").andExpect(status().isOk());
         long id = cities.findByCode("DE").get(0).getUuid();
-        mvc.perform(get("/calc/" + id)).andExpect(status().isOk())
+        record("calc", "/calc/" + id).andExpect(status().isOk())
                 .andExpect(jsonPath("$.distance").exists());
     }
 }
