@@ -1,7 +1,7 @@
 package com.instana.robotshop.shipping;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 
 import com.instana.sdk.support.SpanSupport;
@@ -14,16 +14,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.retry.annotation.EnableRetry;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
 import java.util.Random;
 
 @SpringBootApplication
 @EnableRetry
-@EnableWebMvc
 public class ShippingServiceApplication implements WebMvcConfigurer {
 
     private static final String[] DATA_CENTERS = {
@@ -48,7 +46,7 @@ public class ShippingServiceApplication implements WebMvcConfigurer {
         @Override
         public Object postProcessBeforeInitialization(Object bean, String name) throws BeansException {
             if (bean instanceof DataSource) {
-                bean = new RetryableDataSource((DataSource)bean);
+                bean = new RetryableDataSource((DataSource) bean);
             }
             return bean;
         }
@@ -64,13 +62,11 @@ public class ShippingServiceApplication implements WebMvcConfigurer {
         registry.addInterceptor(new InstanaDatacenterTagInterceptor());
     }
 
-    private static class InstanaDatacenterTagInterceptor extends HandlerInterceptorAdapter {
+    private static class InstanaDatacenterTagInterceptor implements HandlerInterceptor {
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-
             SpanSupport.annotate("datacenter", DATA_CENTERS[new Random().nextInt(DATA_CENTERS.length)]);
-
-            return super.preHandle(request, response, handler);
+            return true;
         }
     }
 }
