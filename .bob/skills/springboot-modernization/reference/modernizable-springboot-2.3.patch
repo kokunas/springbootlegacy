@@ -1,0 +1,429 @@
+diff --git a/modernizable-springboot-2.3/Dockerfile b/modernizable-springboot-2.3/Dockerfile
+index afd9d32..b349cea 100644
+--- a/modernizable-springboot-2.3/Dockerfile
++++ b/modernizable-springboot-2.3/Dockerfile
+@@ -1,21 +1,19 @@
+ #
+ # Build
+ #
+-FROM debian:10 AS build
+-
+-RUN apt-get update && apt-get -y install maven
++FROM maven:3.9-eclipse-temurin-21 AS build
+ 
+ WORKDIR /opt/shipping
+ 
+ COPY pom.xml /opt/shipping/
+-RUN mvn dependency:resolve
++RUN mvn -B dependency:go-offline
+ COPY src /opt/shipping/src/
+-RUN mvn package
++RUN mvn -B package -DskipTests
+ 
+ #
+ # Run
+ #
+-FROM openjdk:8-jdk
++FROM eclipse-temurin:21-jre
+ 
+ EXPOSE 8080
+ 
+@@ -26,5 +24,7 @@ ENV DB_HOST=mysql
+ 
+ COPY --from=build /opt/shipping/target/shipping-1.0.jar shipping.jar
+ 
+-CMD [ "java", "-Xmn256m", "-Xmx768m", "-jar", "shipping.jar" ]
++RUN useradd --system --no-create-home shipping
++USER shipping
+ 
++CMD [ "java", "-Xmn256m", "-Xmx768m", "-jar", "shipping.jar" ]
+diff --git a/modernizable-springboot-2.3/pom.xml b/modernizable-springboot-2.3/pom.xml
+index ab98920..32d920e 100644
+--- a/modernizable-springboot-2.3/pom.xml
++++ b/modernizable-springboot-2.3/pom.xml
+@@ -5,7 +5,7 @@
+ 	<parent>
+ 		<groupId>org.springframework.boot</groupId>
+ 		<artifactId>spring-boot-starter-parent</artifactId>
+-		<version>2.3.3.RELEASE</version>
++		<version>4.1.2</version>
+ 		<relativePath/> <!-- lookup parent from repository -->
+ 	</parent>
+ 	<groupId>com.instana</groupId>
+@@ -15,7 +15,7 @@
+ 	<description>Shipping calculations</description>
+ 
+ 	<properties>
+-		<java.version>1.8</java.version>
++		<java.version>21</java.version>
+ 	</properties>
+ 
+ 	<dependencies>
+@@ -25,12 +25,8 @@
+ 		</dependency>
+ 		<dependency>
+ 			<groupId>org.springframework.boot</groupId>
+-			<artifactId>spring-boot-starter-web</artifactId>
++			<artifactId>spring-boot-starter-webmvc</artifactId>
+ 		</dependency>
+-        <dependency>
+-            <groupId>org.springframework.retry</groupId>
+-            <artifactId>spring-retry</artifactId>
+-        </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-actuator</artifactId>
+@@ -43,26 +39,20 @@
+ 		</dependency>
+ 
+ 		<dependency>
+-			<groupId>mysql</groupId>
+-			<artifactId>mysql-connector-java</artifactId>
++			<groupId>com.mysql</groupId>
++			<artifactId>mysql-connector-j</artifactId>
+ 			<scope>runtime</scope>
+ 		</dependency>
+-        <dependency>
+-            <groupId>org.apache.httpcomponents</groupId>
+-            <artifactId>httpclient</artifactId>
+-            <version>4.5.12</version>
+-        </dependency>
+ 
+ 		<dependency>
+ 			<groupId>org.springframework.boot</groupId>
+-			<artifactId>spring-boot-starter-test</artifactId>
++			<artifactId>spring-boot-starter-webmvc-test</artifactId>
++			<scope>test</scope>
++		</dependency>
++		<dependency>
++			<groupId>com.h2database</groupId>
++			<artifactId>h2</artifactId>
+ 			<scope>test</scope>
+-			<exclusions>
+-				<exclusion>
+-					<groupId>org.junit.vintage</groupId>
+-					<artifactId>junit-vintage-engine</artifactId>
+-				</exclusion>
+-			</exclusions>
+ 		</dependency>
+ 	</dependencies>
+ 
+diff --git a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/CartHelper.java b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/CartHelper.java
+index e10af1a..faf09cb 100644
+--- a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/CartHelper.java
++++ b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/CartHelper.java
+@@ -1,75 +1,47 @@
+ package com.instana.robotshop.shipping;
+ 
+-import java.io.BufferedReader;
+-import java.io.InputStreamReader;
+-import java.io.IOException;
++import java.net.URI;
++import java.net.http.HttpClient;
++import java.net.http.HttpRequest;
++import java.net.http.HttpResponse;
++import java.time.Duration;
+ 
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+-import org.apache.http.client.methods.CloseableHttpResponse;
+-import org.apache.http.client.methods.HttpPost;
+-import org.apache.http.entity.StringEntity;
+-import org.apache.http.impl.client.HttpClients;
+-import org.apache.http.impl.client.CloseableHttpClient;
+-import org.apache.http.params.BasicHttpParams;
+-import org.apache.http.params.HttpConnectionParams;
+-import org.apache.http.params.HttpParams;
+-
+ public class CartHelper {
+     private static final Logger logger = LoggerFactory.getLogger(CartHelper.class);
+-    
++
+     private String baseUrl;
+ 
+     public CartHelper(String baseUrl) {
+         this.baseUrl = baseUrl;
+     }
+ 
+-    // TODO - Remove deprecated calls
+     public String addToCart(String id, String data) {
+         logger.info("add shipping to cart {}", id);
+-        StringBuilder buffer = new StringBuilder();
+-
+-        CloseableHttpClient httpClient = null;
+-        try {
+-            // set timeout to 5 secs
+-            HttpParams httpParams = new BasicHttpParams();
+-            HttpConnectionParams.setConnectionTimeout(httpParams, 5000);
+ 
+-            httpClient = HttpClients.createDefault();
+-            HttpPost postRequest = new HttpPost(baseUrl + id);
+-            StringEntity payload = new StringEntity(data);
+-            payload.setContentType("application/json");
+-            postRequest.setEntity(payload);
+-            CloseableHttpResponse res = httpClient.execute(postRequest);
+-
+-            if (res.getStatusLine().getStatusCode() == 200) {
+-                BufferedReader in = new BufferedReader(new InputStreamReader(res.getEntity().getContent()));
+-                String line;
+-                while ((line = in.readLine()) != null) {
+-                    buffer.append(line);
+-                }
+-            } else {
+-                logger.warn("Failed with code {}", res.getStatusLine().getStatusCode());
+-            }
+-            try {
+-                res.close();
+-            } catch(IOException e) {
+-                logger.warn("httpresponse", e);
++        try (HttpClient httpClient = HttpClient.newBuilder()
++                .connectTimeout(Duration.ofSeconds(5))
++                .build()) {
++            HttpRequest postRequest = HttpRequest.newBuilder(URI.create(baseUrl + id))
++                    .header("Content-Type", "application/json")
++                    .POST(HttpRequest.BodyPublishers.ofString(data))
++                    .build();
++            HttpResponse<String> res = httpClient.send(postRequest, HttpResponse.BodyHandlers.ofString());
++
++            if (res.statusCode() == 200) {
++                return res.body();
+             }
+-        } catch(Exception e) {
++            logger.warn("Failed with code {}", res.statusCode());
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            logger.warn("http client interrupted", e);
++        } catch (Exception e) {
+             logger.warn("http client exception", e);
+-        } finally {
+-            if (httpClient != null) {
+-                try {
+-                    httpClient.close();
+-                } catch(IOException e) {
+-                    logger.warn("httpclient", e);
+-                }
+-            }
+         }
+ 
+         // this will be empty on error
+-        return buffer.toString();
++        return "";
+     }
+ }
+diff --git a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/City.java b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/City.java
+index d1fb033..7c7d750 100644
+--- a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/City.java
++++ b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/City.java
+@@ -1,11 +1,11 @@
+ package com.instana.robotshop.shipping;
+ 
+-import javax.persistence.Table;
+-import javax.persistence.Entity;
+-import javax.persistence.GeneratedValue;
+-import javax.persistence.GenerationType;
+-import javax.persistence.Id;
+-import javax.persistence.Column;
++import jakarta.persistence.Table;
++import jakarta.persistence.Entity;
++import jakarta.persistence.GeneratedValue;
++import jakarta.persistence.GenerationType;
++import jakarta.persistence.Id;
++import jakarta.persistence.Column;
+ 
+ /*
+ * Bean for City
+diff --git a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/Code.java b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/Code.java
+index 152d386..1dad046 100644
+--- a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/Code.java
++++ b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/Code.java
+@@ -1,10 +1,10 @@
+ package com.instana.robotshop.shipping;
+ 
+-import javax.persistence.Table;
+-import javax.persistence.Entity;
+-import javax.persistence.GeneratedValue;
+-import javax.persistence.GenerationType;
+-import javax.persistence.Id;
++import jakarta.persistence.Table;
++import jakarta.persistence.Entity;
++import jakarta.persistence.GeneratedValue;
++import jakarta.persistence.GenerationType;
++import jakarta.persistence.Id;
+ 
+ /*
+ * Bean for Code
+diff --git a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/JpaConfig.java b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/JpaConfig.java
+index 3cd995a..a43a528 100644
+--- a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/JpaConfig.java
++++ b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/JpaConfig.java
+@@ -19,7 +19,7 @@ public class JpaConfig {
+ 
+         DataSourceBuilder bob = DataSourceBuilder.create();
+ 
+-        bob.driverClassName("com.mysql.jdbc.Driver");
++        bob.driverClassName("com.mysql.cj.jdbc.Driver");
+         bob.url(JDBC_URL);
+         bob.username("shipping");
+         bob.password("secret");
+diff --git a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/RetryableDataSource.java b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/RetryableDataSource.java
+index 7dcfd06..73eb652 100644
+--- a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/RetryableDataSource.java
++++ b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/RetryableDataSource.java
+@@ -5,8 +5,7 @@ import java.sql.SQLException;
+ import javax.sql.DataSource;
+ 
+ import org.springframework.jdbc.datasource.AbstractDataSource;
+-import org.springframework.retry.annotation.Retryable;
+-import org.springframework.retry.annotation.Backoff;
++import org.springframework.resilience.annotation.Retryable;
+ 
+ class RetryableDataSource extends AbstractDataSource {
+     private DataSource delegate;
+@@ -16,13 +15,13 @@ class RetryableDataSource extends AbstractDataSource {
+     }
+ 
+     @Override
+-    @Retryable(maxAttempts = 10, backoff = @Backoff(multiplier = 2.3, maxDelay = 30000))
++    @Retryable(maxRetries = 9, multiplier = 2.3, maxDelay = 30000)
+     public Connection getConnection() throws SQLException {
+         return delegate.getConnection();
+     }
+ 
+     @Override
+-    @Retryable(maxAttempts = 10, backoff = @Backoff(multiplier = 2.3, maxDelay = 30000))
++    @Retryable(maxRetries = 9, multiplier = 2.3, maxDelay = 30000)
+     public Connection getConnection(String username, String password) throws SQLException {
+         return delegate.getConnection(username, password);
+     }
+diff --git a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/ShippingServiceApplication.java b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/ShippingServiceApplication.java
+index b500cb1..e28ceb1 100644
+--- a/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/ShippingServiceApplication.java
++++ b/modernizable-springboot-2.3/src/main/java/com/instana/robotshop/shipping/ShippingServiceApplication.java
+@@ -1,7 +1,7 @@
+ package com.instana.robotshop.shipping;
+ 
+-import javax.servlet.http.HttpServletRequest;
+-import javax.servlet.http.HttpServletResponse;
++import jakarta.servlet.http.HttpServletRequest;
++import jakarta.servlet.http.HttpServletResponse;
+ import javax.sql.DataSource;
+ 
+ import com.instana.sdk.support.SpanSupport;
+@@ -13,16 +13,16 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.core.Ordered;
+ import org.springframework.core.annotation.Order;
+-import org.springframework.retry.annotation.EnableRetry;
++import org.springframework.resilience.annotation.EnableResilientMethods;
+ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+-import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
++import org.springframework.web.servlet.HandlerInterceptor;
+ 
+ import java.util.Random;
+ 
+ @SpringBootApplication
+-@EnableRetry
++@EnableResilientMethods
+ @EnableWebMvc
+ public class ShippingServiceApplication implements WebMvcConfigurer {
+ 
+@@ -64,13 +64,13 @@ public class ShippingServiceApplication implements WebMvcConfigurer {
+         registry.addInterceptor(new InstanaDatacenterTagInterceptor());
+     }
+ 
+-    private static class InstanaDatacenterTagInterceptor extends HandlerInterceptorAdapter {
++    private static class InstanaDatacenterTagInterceptor implements HandlerInterceptor {
+         @Override
+         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+ 
+             SpanSupport.annotate("datacenter", DATA_CENTERS[new Random().nextInt(DATA_CENTERS.length)]);
+ 
+-            return super.preHandle(request, response, handler);
++            return true;
+         }
+     }
+ }
+diff --git a/modernizable-springboot-2.3/src/test/java/com/instana/robotshop/shipping/ShippingSmokeTest.java b/modernizable-springboot-2.3/src/test/java/com/instana/robotshop/shipping/ShippingSmokeTest.java
+new file mode 100644
+index 0000000..76b066d
+--- /dev/null
++++ b/modernizable-springboot-2.3/src/test/java/com/instana/robotshop/shipping/ShippingSmokeTest.java
+@@ -0,0 +1,75 @@
++package com.instana.robotshop.shipping;
++
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++import javax.sql.DataSource;
++
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.jdbc.DataSourceBuilder;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.boot.test.context.TestConfiguration;
++import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Import;
++import org.springframework.test.web.servlet.MockMvc;
++
++// Smoke test: arranca el contexto real contra H2 (en lugar de MySQL) y ejercita
++// JPA, Spring Data, la serializacion JSON y los endpoints publicos.
++@SpringBootTest(properties = {
++        "spring.main.allow-bean-definition-overriding=true",
++        "spring.jpa.hibernate.ddl-auto=create-drop"
++})
++@AutoConfigureMockMvc
++@Import(ShippingSmokeTest.H2Config.class)
++class ShippingSmokeTest {
++
++    @TestConfiguration
++    static class H2Config {
++        @Bean
++        DataSource getDataSource() {
++            return DataSourceBuilder.create()
++                    .url("jdbc:h2:mem:cities;DB_CLOSE_DELAY=-1")
++                    .username("sa").password("").build();
++        }
++    }
++
++    @Autowired MockMvc mvc;
++    @Autowired CityRepository cities;
++
++    @BeforeEach
++    void seed() {
++        cities.deleteAll();
++        City c = new City();
++        c.setCode("DE");
++        c.setCity("Dusseldorf");
++        c.setName("Dusseldorf");
++        c.setRegion("NRW");
++        c.setLatitude(51.2277);
++        c.setLongitude(6.7735);
++        cities.save(c);
++    }
++
++    @Test
++    void healthAndCount() throws Exception {
++        mvc.perform(get("/health")).andExpect(status().isOk()).andExpect(content().string("OK"));
++        mvc.perform(get("/count")).andExpect(status().isOk()).andExpect(content().string("1"));
++        mvc.perform(get("/actuator/health")).andExpect(status().isOk());
++    }
++
++    @Test
++    void jsonEndpoints() throws Exception {
++        mvc.perform(get("/cities/DE")).andExpect(status().isOk())
++                .andExpect(jsonPath("$[0].city").value("Dusseldorf"));
++        mvc.perform(get("/match/DE/Dus")).andExpect(status().isOk())
++                .andExpect(jsonPath("$[0].code").value("DE"));
++        mvc.perform(get("/codes")).andExpect(status().isOk());
++        long id = cities.findByCode("DE").get(0).getUuid();
++        mvc.perform(get("/calc/" + id)).andExpect(status().isOk())
++                .andExpect(jsonPath("$.distance").exists());
++    }
++}

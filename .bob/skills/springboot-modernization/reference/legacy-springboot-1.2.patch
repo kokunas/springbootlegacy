@@ -1,0 +1,67 @@
+diff --git a/legacy-springboot-1.2/pom.xml b/legacy-springboot-1.2/pom.xml
+index 7367ff9..eac3109 100644
+--- a/legacy-springboot-1.2/pom.xml
++++ b/legacy-springboot-1.2/pom.xml
+@@ -10,27 +10,22 @@
+     <parent>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-parent</artifactId>
+-        <version>1.2.8.RELEASE</version>
++        <version>4.1.2</version>
+     </parent>
+ 
+     <dependencies>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-web</artifactId>
++            <artifactId>spring-boot-starter-webmvc</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-actuator</artifactId>
+         </dependency>
+-        <dependency>
+-            <groupId>org.jolokia</groupId>
+-            <artifactId>jolokia-core</artifactId>
+-            <version>1.6.0</version>
+-        </dependency>
+     </dependencies>
+ 
+     <properties>
+-        <java.version>1.8</java.version>
++        <java.version>21</java.version>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+     </properties>
+ 
+diff --git a/legacy-springboot-1.2/src/main/java/hello/HelloController.java b/legacy-springboot-1.2/src/main/java/hello/HelloController.java
+index 8705262..84635aa 100644
+--- a/legacy-springboot-1.2/src/main/java/hello/HelloController.java
++++ b/legacy-springboot-1.2/src/main/java/hello/HelloController.java
+@@ -1,9 +1,6 @@
+ package hello;
+ 
+-import com.fasterxml.jackson.databind.DeserializationConfig;
+-import com.fasterxml.jackson.databind.ObjectMapper;
+ import org.springframework.web.bind.annotation.*;
+-import org.springframework.web.multipart.MultipartFile;
+ 
+ @RestController
+ public class HelloController {
+diff --git a/legacy-springboot-1.2/src/main/resources/logback.xml b/legacy-springboot-1.2/src/main/resources/logback.xml
+index 4bda3a9..d7fa8e3 100644
+--- a/legacy-springboot-1.2/src/main/resources/logback.xml
++++ b/legacy-springboot-1.2/src/main/resources/logback.xml
+@@ -1,6 +1,5 @@
+ <configuration>
+     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+-        <withJansi>true</withJansi>
+         <encoder>
+             <pattern>[%thread] %highlight(%-5level) %cyan(%logger{15}) - %msg %n</pattern>
+         </encoder>
+@@ -8,5 +7,4 @@
+     <root level="info">
+         <appender-ref ref="STDOUT" />
+     </root>
+-    <jmxConfigurator/>
+ </configuration>
+\ No newline at end of file
