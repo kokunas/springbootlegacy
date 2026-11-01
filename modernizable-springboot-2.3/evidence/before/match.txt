@@ -1,0 +1,2 @@
+200
+[{"uuid":1,"code":"DE","city":"Dusseldorf","name":"Dusseldorf","region":null,"latitude":51.2277,"longitude":6.7735}]
