@@ -18,12 +18,14 @@ The Java/Spring Boot microservice from
 Top contributors: tomcat-embed-core 9.0.37 (42), jackson-databind 2.11.2 (15),
 spring-webmvc 5.2.8 (12), logback-core 1.2.3 (8), snakeyaml 1.26 (7).
 
-## Expected Secure Coder remediation
-A single bump of the parent to `spring-boot-starter-parent:2.7.18` (and the
-MySQL coordinate `mysql:mysql-connector-java` → `com.mysql:mysql-connector-j`,
-BOM-managed), staying within the 2.x line with no `javax`→`jakarta` migration.
-Clears the bulk of the 132 findings. This is the change merged upstream as
-[robot-shop#1](https://github.com/niklaushirt/robot-shop/pull/1).
+## Secure Coder remediation
+- **Stock Secure Coder** (same-major rule): parent bump to
+  `spring-boot-starter-parent:2.7.18` plus the BOM-managed MySQL coordinate
+  `com.mysql:mysql-connector-j`. Closes part of the 132 findings; the app stays on
+  Spring Framework 5 / `javax.*`.
+- **With the `springboot-modernization` skill** (see [`docs/bob`](../docs/bob)):
+  Spring Boot **4.1.2**, `javax.*` → `jakarta.*`, Hibernate 7, Tomcat 11, with
+  before/after behaviour evidence in `evidence/`.
 
 ## Build
 ```
