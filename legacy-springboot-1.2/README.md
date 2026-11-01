@@ -55,9 +55,9 @@ Spring Boot line**. On a 1.2.8 base that splits the inventory in two:
   1.x line"** recommendation — which is exactly what this testbed is meant to
   surface.
 
-The jump the stock rule refuses is covered by the `springboot-modernization` skill
-(see [`docs/bob`](../docs/bob)): straight to Spring Boot 4.1.2 with before/after
-behaviour evidence, which closes the framework CVEs too.
+The jump the default plan does not make is requested in the Bob chat
+("Modernize to Spring Boot 4.1.2 / Java 21"); the optional skill in
+[`docs/bob`](../docs/bob) adds the before/after behaviour check.
 
 ## Build
 
