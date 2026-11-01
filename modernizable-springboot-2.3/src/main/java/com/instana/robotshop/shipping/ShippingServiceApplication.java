@@ -1,7 +1,7 @@
 package com.instana.robotshop.shipping;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 
 import com.instana.sdk.support.SpanSupport;
@@ -13,16 +13,16 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.retry.annotation.EnableRetry;
+import org.springframework.resilience.annotation.EnableResilientMethods;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
+import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.Random;
 
 @SpringBootApplication
-@EnableRetry
+@EnableResilientMethods
 @EnableWebMvc
 public class ShippingServiceApplication implements WebMvcConfigurer {
 
@@ -64,13 +64,13 @@ public class ShippingServiceApplication implements WebMvcConfigurer {
         registry.addInterceptor(new InstanaDatacenterTagInterceptor());
     }
 
-    private static class InstanaDatacenterTagInterceptor extends HandlerInterceptorAdapter {
+    private static class InstanaDatacenterTagInterceptor implements HandlerInterceptor {
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
 
             SpanSupport.annotate("datacenter", DATA_CENTERS[new Random().nextInt(DATA_CENTERS.length)]);
 
-            return super.preHandle(request, response, handler);
+            return true;
         }
     }
 }

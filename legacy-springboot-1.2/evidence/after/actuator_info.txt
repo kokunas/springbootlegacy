@@ -1,0 +1,2 @@
+404
+{"timestamp":"2026-11-01T07:37:43.594Z","status":404,"error":"Not Found","path":"/actuator/info"}
