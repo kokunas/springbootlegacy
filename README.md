@@ -2,41 +2,48 @@
 
 Two deliberately outdated Spring Boot services in one repo. The demo thesis:
 **resolving the detected CVEs is the driver that modernizes Spring Boot.**
-IBM Concert Secure Coder scans each service, and its remediation turns the CVE
-backlog into a framework upgrade — either applied automatically, or forced as a
-migration decision when the old line is beyond auto-repair.
+IBM Concert Secure Coder scans each service and turns the CVE backlog into a
+remediation PR. Out of the box that PR stays inside the current major line; with
+the [`springboot-modernization`](docs/bob) skill it goes all the way to the
+latest Spring Boot 4.x and proves the app still works.
 
-| Component | Spring Boot | Vulns (trivy) | What Secure Coder does | Demo role |
+| Component | Spring Boot | Vulns (trivy) | Stock Secure Coder | With the modernization skill |
 |---|---|---|---|---|
-| [`modernizable-springboot-2.3`](modernizable-springboot-2.3) | **2.3.3.RELEASE** | 132 (13 CRIT / 54 HIGH) | Bumps the Spring Boot parent to **2.7.18** in one PR, clearing the CVEs | **Success path** — CVE fix *is* the modernization |
-| [`legacy-springboot-1.2`](legacy-springboot-1.2) | **1.2.8.RELEASE** | 142 (31 CRIT / 67 HIGH) | Pins leaf libs (jackson, snakeyaml, logback); framework CVEs can't be pinned | **Forcing function** — remediation demands a migration off EOL 1.x |
+| [`modernizable-springboot-2.3`](modernizable-springboot-2.3) | **2.3.3.RELEASE** | 132 (13 CRIT / 54 HIGH) | Same-major bump to **2.7.18** | Spring Boot **4.1.2**, 0 CRITICAL/HIGH |
+| [`legacy-springboot-1.2`](legacy-springboot-1.2) | **1.2.8.RELEASE** | 142 (31 CRIT / 67 HIGH) | Same-major bump to **1.5.22** plus pins of leaf libs (jackson, snakeyaml, logback, tomcat) | Spring Boot **4.1.2**, 0 CRITICAL/HIGH |
 
 ## The two stories
 
-### 1. CVE resolution modernizes the framework (2.3 → 2.7)
-`modernizable-springboot-2.3` is the robot-shop `shipping` service. Its 132
-vulnerabilities (Tomcat 9.0.37, jackson-databind 2.11.2, Spring 5.2.8, …) all
-have fixes **inside the Spring Boot 2.x line**. Secure Coder's remediation is a
-single parent bump to `spring-boot-starter-parent:2.7.18`, which carries the app
-forward ~2 years of framework releases while closing the CVEs. This is the exact
-change Secure Coder shipped on the upstream repo
-([niklaushirt/robot-shop#1](https://github.com/niklaushirt/robot-shop/pull/1),
-"Fix 22 CVEs by upgrading Spring Boot to 2.7.18"). **Remediation = modernization,
-applied automatically.**
+### 1. Stock Secure Coder stays inside the major line
+Secure Coder's package remediation is deliberately conservative: *same major
+version only* and *only the findings in scope*. On this repo it produced one PR
+that fixed 140 of the 265 scoped findings: `modernizable-springboot-2.3` went
+2.3.3 → 2.7.18 and `legacy-springboot-1.2` went 1.2.8 → 1.5.22, with the leaf
+libraries pinned by hand. Both apps keep running on end-of-life lines
+(Spring Boot 1.5 / 2.7, `javax.*`, Spring Framework 4/5), and the CVEs whose fix
+only exists in Spring Framework 6/7 (for example Spring4Shell, CVE-2022-22965,
+on the 4.1.9 line) stay open.
 
-### 2. CVEs force a migration the old line can't absorb (1.2)
-`legacy-springboot-1.2` is pinned to Spring Boot 1.2.8 (2015). Its leaf-library
-CVEs (jackson-databind 2.4.6, snakeyaml 1.14, logback 1.1.3) can be pinned, but
-the **framework** CVEs — Spring4Shell (CVE-2022-22965) on spring-beans/webmvc
-4.1.9, the spring-web deserialization RCE (CVE-2016-1000027), Tomcat Ghostcat
-(CVE-2020-1938) — are only fixed in Spring 5.2.20+/6.x, i.e. Spring Boot 2/3.
-There is no in-line patch. Secure Coder pins what it can and surfaces the rest as
-a **"migrate off the end-of-life 1.x line"** decision. **Remediation becomes the
-business case for modernization.**
+### 2. The skill turns remediation into modernization
+[`docs/bob/springboot-modernization`](docs/bob/springboot-modernization) is a Bob
+skill (plus an organization policy rule, see [`docs/bob/README.md`](docs/bob/README.md))
+that approves the major jump as an explicit customer exception. It migrates both
+modules straight to Spring Boot 4.1.2 (Spring Framework 7, Tomcat 11, Jackson 3,
+Hibernate 7, `jakarta.*`, Java 21), removes the old leaf-library pins, and
+requires **before/after behaviour evidence** in `<module>/evidence/`: the same
+HTTP calls against the original and the migrated app, with every difference
+explained. A Trivy rescan of the CycloneDX SBOM must show 0 CRITICAL/HIGH.
+
+## Behaviour changes to expect after the jump
+- `legacy-springboot-1.2`: `/health` becomes `/actuator/health` (now with
+  `liveness`/`readiness` groups) and `/info` is no longer exposed.
+- JSON key order changes (Jackson 3 sorts alphabetically); content is identical.
+- Jolokia is dropped (unsupported on Spring Boot 4).
 
 ## Scans
 Each component ships its trivy scan (`cve-scan.trivy.json`) as the baseline
-"before" inventory. Re-scan after Secure Coder's PR to show the delta.
+"before" inventory. Re-scan after the remediation PR to show the delta (use a CycloneDX SBOM with
+`trivy sbom`: `trivy fs` on a Spring Boot fat JAR detects nothing).
 
 ## Next steps
 1. Register each component in IBM Concert (target instance TBD).
